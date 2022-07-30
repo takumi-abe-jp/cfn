@@ -1,0 +1,50 @@
+---
+
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  Project:
+    Description: An service name that is prefixed to resource names
+    Type: String
+    Default: service
+
+Resources:
+  ECRRepositoryFront:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${Project}_front
+      RepositoryPolicyText:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Ref AWS::AccountId
+            Action:
+              - ecr:*
+  ECRRepositoryBack:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${Project}_back
+      RepositoryPolicyText:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Ref AWS::AccountId
+            Action:
+              - ecr:*
+Outputs:
+  ECRRepositoryUriFront:
+    Description: ECR repository URI for front
+    Value: !GetAtt ECRRepositoryFront.RepositoryUri
+    Export:
+      Name: !Sub ${Project}-front-ecr-repository-uri
+  ECRRepositoryUriBack:
+    Description: ECR repository URI for back
+    Value: !GetAtt ECRRepositoryBack.RepositoryUri
+    Export:
+      Name: !Sub ${Project}-back-ecr-repository-uri

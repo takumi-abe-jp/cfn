@@ -1,0 +1,186 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  Project:
+    Description: An project name that is prefixed to resource names
+    Type: String
+    Default: service
+  Env:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: dev
+    AllowedValues:
+      - poc
+      - dev
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+Resources:
+  # ------------------------------------------------------------#
+  # ALB
+  # ------------------------------------------------------------#
+  SecurityGroupALBFront:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: SecurityGroupALBFront
+      #      SecurityGroupIngress:
+      #        - CidrIp: 0.0.0.0/0
+      #          FromPort: 80
+      #          IpProtocol: tcp
+      #          ToPort: 80
+      #        - CidrIp: 0.0.0.0/0
+      #          FromPort: 443
+      #          IpProtocol: tcp
+      #          ToPort: 443
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - ${Project}-${Env}-${Service}-alb-sg
+            - Service: front
+        - Key: Project
+          Value: !Sub ${Project}
+        - Key: Service
+          Value: front
+        - Key: Env
+          Value: !Sub ${Env}
+  SecurityGroupALBBack:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: SecurityGroupALBBack
+      #      SecurityGroupIngress:
+      #        - CidrIp: 0.0.0.0/0
+      #          FromPort: 80
+      #          IpProtocol: tcp
+      #          ToPort: 80
+      #        - CidrIp: 0.0.0.0/0
+      #          FromPort: 443
+      #          IpProtocol: tcp
+      #          ToPort: 443
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - ${Project}-${Env}-${Service}-alb-sg
+            - Service: back
+        - Key: Project
+          Value: !Sub ${Project}
+        - Key: Service
+          Value: back
+        - Key: Env
+          Value: !Sub ${Env}
+  SecurityGroupIngressALBToFront:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      FromPort: 80
+      GroupId: !GetAtt SecurityGroupContainerFront.GroupId
+      IpProtocol: tcp
+      SourceSecurityGroupId: !GetAtt SecurityGroupALBFront.GroupId
+      ToPort: 80
+  SecurityGroupIngressFrontToFront:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt SecurityGroupContainerFront.GroupId
+      IpProtocol: -1
+      SourceSecurityGroupId: !GetAtt SecurityGroupContainerFront.GroupId
+  # back
+  SecurityGroupContainerBack:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: SecurityGroupContainerBack
+      Tags:
+        - Key: Name
+          Value: !Sub
+            - ${Project}-${Env}-${Service}-container-sg
+            - Service: back
+        - Key: Project
+          Value: !Sub ${Project}
+        - Key: Service
+          Value: abck
+        - Key: Env
+          Value: !Sub ${Env}
+  SecurityGroupIngressALBToBack:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      FromPort: 80
+      GroupId: !GetAtt SecurityGroupContainerBack.GroupId
+      IpProtocol: tcp
+      SourceSecurityGroupId: !GetAtt SecurityGroupALBBack.GroupId
+      ToPort: 80
+  SecurityGroupIngressBackToBack:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt SecurityGroupContainerBack.GroupId
+      IpProtocol: -1
+      SourceSecurityGroupId: !GetAtt SecurityGroupContainerBack.GroupId
+
+  # ------------------------------------------------------------#
+  # RDS
+  # ------------------------------------------------------------#
+  SecurityGroupRDS:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VpcId
+      GroupDescription: Security Group of database
+      GroupName: database
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: '-1'
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-{Env}-rds-sg
+        - Key: Project
+          Value: !Sub ${Project}
+        - Key: Env
+          Value: !Sub ${Env}
+  SecurityGroupIngressFrontToRDS:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt SecurityGroupRDS.GroupId
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !GetAtt SecurityGroupContainerFront.GroupId
+  SecurityGroupIngressBackToRDS:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt SecurityGroupRDS.GroupId
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !GetAtt SecurityGroupContainerBack.GroupId
+  
+Outputs:
+  # front
+  FrontALBSecurityGroup:
+    Value: !Ref SecurityGroupALBFront
+    Export:
+      Name: !Sub
+        - ${Project}-${Env}-${Service}-alb-sg
+        - Service: front
+  FrontContainerSecurityGroup:
+    Value: !Ref SecurityGroupContainerFront
+    Export:
+      Name: !Sub
+        - ${Project}-${Env}-${Service}-container-sg
+        - Service: front
+  # back
+  BackALBSecurityGroup:
+    Value: !Ref SecurityGroupALBBack
+    Export:
+      Name: !Sub
+        - ${Project}-${Env}-${Service}-alb-sg
+        - Service: back
+  BackContainerSecurityGroup:
+    Value: !Ref SecurityGroupContainerBack
+    Export:
+      Name: !Sub
+        - ${Project}-${Env}-${Service}-container-sg
+        - Service: back
+  # RDS
+  RDSSecurityGroup:
+    Value: !Ref SecurityGroupRDS
+    Export:
+      Name: !Sub ${Project}-${Env}-rds-sg

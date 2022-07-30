@@ -1,0 +1,394 @@
+Parameters:
+  Project:
+    Description: An project name that is prefixed to resource names
+    Type: String
+    Default: service
+  Env:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: dev
+    AllowedValues:
+      - poc
+      - dev
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.1.0.0/16
+  PublicSubnetACIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.10.0/24
+  PublicSubnetCCIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.11.0/24
+  PrivateSubnetACIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.20.0/24
+  PrivateSubnetCCIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.21.0/24
+  PublicSubnetAName:
+    Description: the public subnet in the second Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+  PublicSubnetCName:
+    Description: the public subnet in the second Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+  PrivateSubnetAName:
+    Description: the private subnet in the second Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+  PrivateSubnetCName:
+    Description: the private subnet in the second Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-vpc
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-ig
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Ref PublicSubnetAName
+      CidrBlock: !Ref PublicSubnetACIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-public-subnet-a
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  PublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Ref PublicSubnetCName
+      CidrBlock: !Ref PublicSubnetCCIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-public-subnet-2
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Ref PrivateSubnetAName
+      CidrBlock: !Ref PrivateSubnetACIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-private-subnet-a
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Ref PrivateSubnetCName
+      CidrBlock: !Ref PrivateSubnetCCIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-private-subnet-c
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  NatGatewayAEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+  #  NatGatewayCEIP:
+  #    Type: AWS::EC2::EIP
+  #    DependsOn: InternetGatewayAttachment
+  #    Properties:
+  #      Domain: vpc
+  NatGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayAEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+  #  NatGatewayC:
+  #    Type: AWS::EC2::NatGateway
+  #    Properties:
+  #      AllocationId: !GetAtt NatGatewayCEIP.AllocationId
+  #      SubnetId: !Ref PublicSubnetC
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-public-routes
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+  PublicSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetC
+  PrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-private-routes-a
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  DefaultPrivateRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      SubnetId: !Ref PrivateSubnetA
+  PrivateRouteTableC:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-private-routes-c
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  #  DefaultPrivateRouteC:
+  #    Type: AWS::EC2::Route
+  #    Properties:
+  #      RouteTableId: !Ref PrivateRouteTableC
+  #      DestinationCidrBlock: 0.0.0.0/0
+  #      NatGatewayId: !Ref NatGatewayC
+  PrivateSubnetCRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableC
+      SubnetId: !Ref PrivateSubnetC
+
+  # VPC endpoint
+  EndpointSSM:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetC
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+  EndpointSSMMessages:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetC
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+  EndpointEC2Messages:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetC
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+  EndpointECRDkr:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetC
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+  EndpointECRApi:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PrivateDnsEnabled: true
+      SecurityGroupIds:
+        - !Ref EndpointSecurityGroup
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetC
+      VpcEndpointType: Interface
+      VpcId: !Ref VPC
+
+  EndpointS3:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      RouteTableIds:
+        - !Ref PrivateRouteTableA
+        - !Ref PrivateRouteTableC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      VpcId: !Ref VPC
+
+  # Security Group
+  EndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub ${Project}-{Env}-vpc-endpoint-sg
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !Ref VpcCIDR
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-vpc-endpoint-sg
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+  NoIngressSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "no-ingress-sg"
+      GroupDescription: "Security group with no ingress rule"
+      VpcId: !Ref VPC
+  EC2SecurityGroupAllow:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 SecurityGroup Allow
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Project}-${Env}-allow-sg
+        - Key: Env
+          Value: !Sub ${Env}
+        - Key: Project
+          Value: !Sub ${Project}
+      SecurityGroupIngress:
+        - CidrIp: 192.168.0.0/32
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+          Description: allow ip 
+        - CidrIp: 192.168.0.0/32
+          FromPort: 443
+          IpProtocol: tcp
+          ToPort: 443
+          Description: allow ip
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${Project}-${Env}-vpc
+  PublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [ ",", [ !Ref PublicSubnetA, !Ref PublicSubnetC ] ]
+    Export:
+      Name: !Sub ${Project}-${Env}-public-subnet-ids
+  PrivateSubnets:
+    Description: A list of the private subnets
+    Value: !Join [ ",", [ !Ref PrivateSubnetA, !Ref PrivateSubnetC ] ]
+    Export:
+      Name: !Sub ${Project}-${Env}-private-subnet-ids
+  PublicSubnetA:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref PublicSubnetA
+    Export:
+      Name: !Sub ${Project}-${Env}-public-subnet-a
+  PublicSubnetC:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref PublicSubnetC
+    Export:
+      Name: !Sub ${Project}-${Env}-public-subnet-c
+  PrivateSubnetA:
+    Description: A reference to the private subnet in the 1st Availability Zone
+    Value: !Ref PrivateSubnetA
+    Export:
+      Name: !Sub ${Project}-${Env}-private-subnet-a
+  PrivateSubnetC:
+    Description: A reference to the private subnet in the 2nd Availability Zone
+    Value: !Ref PrivateSubnetC
+    Export:
+      Name: !Sub ${Project}-${Env}-private-subnet-c
+  # Security Group
+  NoIngressSecurityGroup:
+    Description: Security group with no ingress rule
+    Value: !Ref NoIngressSecurityGroup
+    Export:
+      Name: !Sub ${Project}-${Env}-vpc-sg
+  EC2SecurityGroupIDAllow:
+    Description: EC2 SecurityGroup ID Allow IP
+    Value: !GetAtt EC2SecurityGroupAllow.GroupId
+    Export:
+      Name: !Sub allow-sg-id
